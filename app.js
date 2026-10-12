@@ -71,12 +71,139 @@ cargarTema();
 // #                          TU CÓDIGO AQUÍ                    #
 // #                                                                          #
 // ############################################################################
- 
+/* 
 const cargarSeriesPopulares = async () => {
     const response = await fetch(`${BASE_URL}/tv/popular?api_key=${API_KEY}&language=es-ES`);
     const data = await response.json();
     console.log('Series populares cargadas:', data.results);
 };
 
-// Carga inicial al abrir la página
 cargarSeriesPopulares();
+*/
+
+const obtenerSeriesPopulares = async () => {
+    const url = `${BASE_URL}/tv/popular?api_key=${API_KEY}&language=es-ES`;
+    const respuesta = await fetch(url);
+    
+    if (!respuesta.ok) {
+        throw new Error(`Error ${respuesta.status}`);
+    }
+    
+    const datos = await respuesta.json();
+    return datos.results;
+};
+
+const crearTarjeta = (serie) => {
+    const { id, name, first_air_date, vote_average, poster_path } = serie;
+    const anio = first_air_date ? first_air_date.split('-')[0] : 'N/A';
+    const image = poster_path ? `${IMAGE_URL}${poster_path}` : 'https://via.placeholder.com/500x750?text=Sin+Imagen';
+    const rating = vote_average ? vote_average.toFixed(1) : 'N/A';
+
+    return `
+        <article class="serie-card" data-id="${id}">
+            <div class="serie-card__poster">
+                <img class="serie-card__image" src="${image}" alt="${name}">
+                <span class="serie-card__rating">⭐ ${rating}</span>
+            </div>
+            <div class="serie-card__info">
+                <h3 class="serie-card__title">${name}</h3>
+                <p class="serie-card__year">${anio}</p>
+            </div>
+        </article>
+    `;
+};
+
+const iniciar = async () => {
+    mostrarLoading();
+    try {
+        const series = await obtenerSeriesPopulares();
+        
+        resultsTitle.textContent = "Series Populares";
+        resultsCount.textContent = `(${series.length})`;
+
+        seriesGrid.innerHTML = series.map(crearTarjeta).join('');
+        ocultarLoading();
+    } catch (error) {
+        console.error('Error al cargar:', error);
+        let mensaje = 'Error de conexión';
+        
+        if (error.message.includes('401')) {
+            mensaje = 'API Key inválida';
+        } else if (error.message.includes('429')) {
+            mensaje = 'Existen demasiadas peticiones. Espera un momento';
+        }
+        
+        mostrarError(mensaje);
+    }
+};
+
+retryBtn.addEventListener('click', iniciar);
+
+iniciar();
+
+const buscarSeries = async (texto) => {
+    if (!texto || texto.trim() === '') {
+        return obtenerSeriesPopulares();
+    }
+    const query = encodeURIComponent(texto.trim());
+    const url = `${BASE_URL}/search/tv?api_key=${API_KEY}&language=es-ES&query=${query}`;
+    const respuesta = await fetch(url);
+    
+    if (!respuesta.ok) {
+        if (respuesta.status === 401) throw new Error("API Key inválida");
+        throw new Error("Error de conexión");
+    }
+
+    const datos = await respuesta.json();
+    return datos.results;
+};
+
+let timeoutBusqueda = null;
+
+searchInput.addEventListener('input', (evento) => {
+    const texto = evento.target.value;
+    clearTimeout(timeoutBusqueda);
+
+    // Si el campo se borra por completo, carga las populares de inmediato
+    if (!texto.trim()) {
+        iniciar();
+        return;
+    }
+
+    timeoutBusqueda = setTimeout(async () => {
+        mostrarLoading();
+        try {
+            const series = await buscarSeries(texto);
+            ocultarLoading(); 
+
+            resultsTitle.textContent = `Resultados para: "${texto}"`;
+            resultsCount.textContent = `(${series.length})`;
+
+            if (series.length === 0) {
+                seriesGrid.innerHTML = `<p class="no-results">No se encontraron series para: ${texto}</p>`;
+                return;
+            }
+
+            // AQUÍ PINTAMOS LAS TARJETAS EN EL DOM:
+            seriesGrid.innerHTML = series.map(crearTarjeta).join('');
+
+        } catch (error) {
+            console.error('Error de búsqueda', error);
+            const mensaje = error.message.includes("API Key") 
+                ? "API Key inválida" 
+                : "Error de conexión";
+            mostrarError(mensaje);
+        }
+    }, 500);
+});
+
+// Botón Limpiar: Cambiado a iniciar() porque cargarSeriesPopulares estaba comentada
+clearBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    iniciar();
+});
+
+clearBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    cargarSeriesPopulares();
+});
