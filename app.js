@@ -81,12 +81,21 @@ const cargarSeriesPopulares = async () => {
 cargarSeriesPopulares();
 */
 
+const manejarError = (error) => {
+    console.error('Error capturado:', error);
+    if (error.message.includes('401') || error.message.includes('API Key')) {
+        mostrarError('API Key inválida');
+    } else {
+        mostrarError('Error de conexión');
+    }
+};
+
 const obtenerSeriesPopulares = async () => {
     const url = `${BASE_URL}/tv/popular?api_key=${API_KEY}&language=es-ES`;
     const respuesta = await fetch(url);
     
     if (!respuesta.ok) {
-        throw new Error(`Error ${respuesta.status}`);
+        throw new Error(respuesta.status === 401 ? '401' : 'Conexion');
     }
     
     const datos = await respuesta.json();
@@ -124,21 +133,11 @@ const iniciar = async () => {
         seriesGrid.innerHTML = series.map(crearTarjeta).join('');
         ocultarLoading();
     } catch (error) {
-        console.error('Error al cargar:', error);
-        let mensaje = 'Error de conexión';
-        
-        if (error.message.includes('401')) {
-            mensaje = 'API Key inválida';
-        } else if (error.message.includes('429')) {
-            mensaje = 'Existen demasiadas peticiones. Espera un momento';
-        }
-        
-        mostrarError(mensaje);
+        manejarError(error);
     }
 };
 
 retryBtn.addEventListener('click', iniciar);
-
 iniciar();
 
 const buscarSeries = async (texto) => {
@@ -150,8 +149,7 @@ const buscarSeries = async (texto) => {
     const respuesta = await fetch(url);
     
     if (!respuesta.ok) {
-        if (respuesta.status === 401) throw new Error("API Key inválida");
-        throw new Error("Error de conexión");
+        throw new Error(respuesta.status === 401 ? '401' : 'Conexion');
     }
 
     const datos = await respuesta.json();
@@ -183,19 +181,12 @@ searchInput.addEventListener('input', (evento) => {
                 return;
             }
 
-            // AQUÍ PINTAMOS LAS TARJETAS EN EL DOM:
             seriesGrid.innerHTML = series.map(crearTarjeta).join('');
 
         } catch (error) {
-            console.error('Error de búsqueda', error);
-            mostrarError("Error de conexión");
+            manejarError(error);
         }
     }, 500);
-});
-
-clearBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    iniciar();
 });
 
 clearBtn.addEventListener('click', () => {
@@ -209,6 +200,11 @@ const cerrarModal = () => modal.classList.remove('modal--show');
 const obtenerDetalleSerie = async (id) => {
     const url = `${BASE_URL}/tv/${id}?api_key=${API_KEY}&language=es-ES`;
     const respuesta = await fetch(url);
+
+    if (!respuesta.ok) {
+        throw new Error(respuesta.status === 401 ? '401' : 'Conexion');
+    }
+
     return await respuesta.json();
 };
 
@@ -252,8 +248,7 @@ seriesGrid.addEventListener('click', async (e) => {
         const detalleSerie = await obtenerDetalleSerie(serieId);
         mostrarDetalleEnModal(detalleSerie);
     } catch (error) {
-        console.error('Error al obtener detalle:', error);
-        mostrarError("Error al obtener detalle de la serie");
+        manejarError(error);
     }
 });
 
