@@ -71,7 +71,7 @@ cargarTema();
 // #                          TU CÓDIGO AQUÍ                    #
 // #                                                                          #
 // ############################################################################
-/* 
+/*
 const cargarSeriesPopulares = async () => {
     const response = await fetch(`${BASE_URL}/tv/popular?api_key=${API_KEY}&language=es-ES`);
     const data = await response.json();
@@ -164,7 +164,6 @@ searchInput.addEventListener('input', (evento) => {
     const texto = evento.target.value;
     clearTimeout(timeoutBusqueda);
 
-    // Si el campo se borra por completo, carga las populares de inmediato
     if (!texto.trim()) {
         iniciar();
         return;
@@ -197,7 +196,6 @@ searchInput.addEventListener('input', (evento) => {
     }, 500);
 });
 
-// Botón Limpiar: Cambiado a iniciar() porque cargarSeriesPopulares estaba comentada
 clearBtn.addEventListener('click', () => {
     searchInput.value = '';
     iniciar();
@@ -205,5 +203,81 @@ clearBtn.addEventListener('click', () => {
 
 clearBtn.addEventListener('click', () => {
     searchInput.value = '';
-    cargarSeriesPopulares();
+    iniciar();
 });
+// ============================================================================
+// 4. MODAL DE DETALLE
+// ============================================================================
+
+const abrirModal = () => modal.classList.add('modal--open');
+const cerrarModal = () => modal.classList.remove('modal--open');
+
+const obtenerDetalleSerie = async (id) => {
+    const url = `${BASE_URL}/tv/${id}?api_key=${API_KEY}&language=es-ES`;
+    const respuesta = await fetch(url);
+
+    if (!respuesta.ok) {
+        if (respuesta.status === 401) throw new Error("API Key inválida");
+        throw new Error("Error de conexión");
+    }
+
+    return await respuesta.json();
+};
+
+const mostrarDetalleEnModal = (serie) => {
+    const {
+        name,
+        overview,
+        number_of_seasons,
+        number_of_episodes,
+        genres,
+        status,
+        poster_path
+    } = serie;
+
+    const imagen = poster_path ? `${IMAGE_URL}${poster_path}` : 'https://via.placeholder.com/500x750?text=Sin+Imagen';
+    const listaGeneros = genres && genres.length > 0 
+        ? genres.map(g => g.name).join(', ') 
+        : 'Sin géneros especificados';
+    const sinopsis = overview || 'No hay sinopsis disponible.';
+
+    modalBody.innerHTML = `
+        <div class="modal__detail">
+            <img class="modal__img" src="${imagen}" alt="${name}">
+            <div class="modal__info">
+                <h2>${name}</h2>
+                <p><strong>Estado:</strong> ${status || 'N/A'}</p>
+                <p><strong>Temporadas:</strong> ${number_of_seasons ?? 'N/A'}</p>
+                <p><strong>Episodios:</strong> ${number_of_episodes ?? 'N/A'}</p>
+                <p><strong>Géneros:</strong> ${listaGeneros}</p>
+                <p><strong>Sinopsis:</strong> ${sinopsis}</p>
+            </div>
+        </div>
+    `;
+
+    abrirModal();
+};
+
+// Delegación de eventos para detectar clic en cualquier tarjeta del grid
+seriesGrid.addEventListener('click', async (e) => {
+    const tarjeta = e.target.closest('.serie-card');
+    if (!tarjeta) return;
+
+    const serieId = tarjeta.dataset.id;
+    if (!serieId) return;
+
+    try {
+        const detalleSerie = await obtenerDetalleSerie(serieId);
+        mostrarDetalleEnModal(detalleSerie);
+    } catch (error) {
+        console.error('Error al obtener detalle:', error);
+        const mensaje = error.message.includes("API Key") 
+            ? "API Key inválida" 
+            : "Error de conexión";
+        mostrarError(mensaje);
+    }
+});
+
+// Eventos para cerrar el modal
+modalClose.addEventListener('click', cerrarModal);
+modalOverlay.addEventListener('click', cerrarModal);
